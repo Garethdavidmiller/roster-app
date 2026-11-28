@@ -526,7 +526,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
 - **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
-- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
+- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `journeyDateAt` · `dayWord` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`
 - **Exports:** `watchOverflowHint`
