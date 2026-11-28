@@ -99,6 +99,11 @@ describe('the card', () => {
         assert.deepEqual(rolesInOrder('Manager'), TEAM_GRADES, 'a role with no tab moved the tabs\' order');
     });
 
+    test('the title leads with the 👥 the day panel\'s button and the Team button wear, hidden from a screen reader', () => {
+        // The region's name is the title's words ("On with … Wednesday 16 September", e2e), so the emoji is not read.
+        assert.match(card(), /<h2 class="tv-onwith-title" id="tvOnWithTitle" tabindex="-1"><span aria-hidden="true">👥<\/span> On with /);
+    });
+
     test('a role with nobody on at the same time says so, calmly', () => {
         assert.match(section(card(), 'Dispatcher').html, /<p class="tv-onwith-none">Nobody on at the same time<\/p>/);
     });

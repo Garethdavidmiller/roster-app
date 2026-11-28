@@ -42,7 +42,7 @@ import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBad
 import { initBulkBar, updateBulkSelCount, resetBulkPills } from './admin-bulk-bar.js';
 // The grid's time boxes — typed formatting and the HH:MM check, by clock-input.js's rule.
 import { initTimeInputs } from './admin-time-inputs.js';
-import { previewChanges, gridPreviewHtml, nowShows } from './admin-day-change.js';
+import { previewChanges, gridPreviewHtml, stagedCountWords, nowShows } from './admin-day-change.js';
 
 /** What a member still signed in after leaving the roster is told, on every card (admin-app.js). */
 export const NOT_ON_ROSTER_LINE = 'Your account is no longer on the roster — please contact the admin.';
@@ -532,6 +532,11 @@ export function updateSaveBtn() {
     // The unsaved banner's "Discard and continue" too: a landing save would reset the NEW view's rows.
     for (const id of ['stagedSaveBtn', 'stagedDiscardBtn', 'unsavedDiscardBtn']) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = _saveInFlight; }
 
+    // The save's own plan, asked ONCE for the bar and the preview, so the two count from one answer.
+    const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
+    const planned = total > 0 && memberName
+        ? previewChanges(rows, memberName, weekGrid, buildMemberDateMap(memberName)) : null;
+
     // Staged bar — the save state as a fixed bottom affordance, so nobody scrolls back up to save.
     const stagedBar   = document.getElementById('stagedBar');
     const stagedCount = document.getElementById('stagedCount');
@@ -546,24 +551,18 @@ export function updateSaveBtn() {
             /** @type {HTMLElement|null} */ ((receipt?.textContent?.trim() ? receipt : null) ?? document.getElementById('weekNavLabel'))
                 ?.focus({ preventScroll: true });
         }
-        if (stagedCount) {
-            const parts = [];
-            if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''}`);
-            if (delCount)  parts.push(`${delCount} to remove`);
-            stagedCount.textContent = parts.join(', ');
-        }
+        if (stagedCount) stagedCount.textContent = stagedCountWords({ saveCount, delCount, leftAlone: planned?.leftAlone.length ?? 0 });
     }
 
     // Inline change preview — what you are about to do, and what each day becomes (admin-day-change.js).
     const gridPreview = document.getElementById('gridPreview');
     let previewShown = false;
     if (gridPreview) {
-        const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
-        if (total > 0 && memberName) {
+        if (planned && memberName) {
             // For a few days, what each becomes, by the save's own plan. A live region, asked on every keystroke:
             // rewritten (re-announced) only on a change.
             // The plan runs for every save, so the count says what it writes; the day lines only for a few days.
-            const { changes, leftAlone } = previewChanges(rows, memberName, weekGrid, buildMemberDateMap(memberName));
+            const { changes, leftAlone } = planned;
             const lines = saveCount <= 4 || leftAlone.length === saveCount ? changes : new Map();
             const { html, sig } = gridPreviewHtml({ saveCount, delCount, memberName, changes: lines, leftAlone: leftAlone.length });
             if (gridPreview.dataset.sig !== sig) { gridPreview.innerHTML = html; gridPreview.dataset.sig = sig; }

@@ -438,7 +438,7 @@
     </div>
     <div class="save-row">
       <span class="save-status" id="saveStatus" tabindex="-1">No entries saved for this payslip</span>
-      <button type="button" class="save-retry" id="saveRetryBtn" hidden>Retry</button>
+      <button type="button" class="save-retry" id="saveRetryBtn" hidden>Try again</button>
       <!-- Speaks only a CHANGE of state — not saved, saved again — never each typed save (paycalc-save-line.js rule 5) -->
       <span class="visually-hidden" id="saveStatusLive" role="status" aria-live="polite"></span>
       <button type="button" class="clear-btn" id="clearBtn">Clear all entries</button>
@@ -503,7 +503,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×</span>
-          <div class="h-sub">A Saturday in your roster, or one you swapped a weekday for. Came in on a rest day as extra? Use Rest Day Working instead. <span class="h-payslip">Shows as "Ord&nbsp;Basic&nbsp;Pay&nbsp;@1.25" on your payslip.</span></div>
+          <div class="h-sub">A Saturday in your roster, or one you swapped a weekday for. Came in on a rest day as extra? Use Rest Day Working instead. <span class="h-payslip">Shows as "Ord Basic Pay&nbsp;@1.25" on your payslip.</span></div>
           <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
@@ -526,7 +526,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
           <span class="rate-badge badge-sun" id="badge-sun">1.5×</span>
-          <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW&nbsp;Sun&nbsp;1.5" on your payslip.</span></div>
+          <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW Sun&nbsp;1.5" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -548,7 +548,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×</span>
-          <div class="h-sub">You were rostered to work and it fell on a bank holiday (Easter, May Day, etc.), or you swapped a weekday for the bank holiday. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Rostered&nbsp;1.25" on your payslip.</span></div>
+          <div class="h-sub">You were rostered to work and it fell on a bank holiday (Easter, May Day, etc.), or you swapped a weekday for the bank holiday. <span class="h-payslip">Shows as "Bank Holiday Rostered&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -570,7 +570,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×</span>
-          <div class="h-sub">Hours on a bank holiday beyond your rostered shift, or a rest day on a bank holiday worked as extra. A bank holiday swapped for a weekday goes in Bank Holiday Rostered. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;1.25" on your payslip.</span></div>
+          <div class="h-sub">Hours on a bank holiday beyond your rostered shift, or a rest day on a bank holiday worked as extra. A bank holiday swapped for a weekday goes in Bank Holiday Rostered. <span class="h-payslip">Shows as "Bank Holiday Overtime&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -645,7 +645,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
           <span class="rate-badge badge-box" id="badge-box">3×</span>
-          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;3.0" on your payslip.</span></div>
+          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank Holiday Overtime&nbsp;3.0" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">

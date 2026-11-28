@@ -714,11 +714,8 @@
         }
         .calendar-day.bank-holiday::before { content: '⭐'; right: 3px; }
 
-        /* No cursor rule of their own for payday and cut-off cells (17 Nov 2026). One said they
-           "navigate to the pay calculator on click", untrue since v23.59: every day opens the day
-           panel, which holds the pay route, and every real day cell takes the pointer cursor on a
-           fine pointer (the hover block above). */
-
+        /* No cursor rule of their own for payday and cut-off cells: every day opens the day panel, which holds the
+           pay route, and every real day takes the pointer cursor on a fine pointer (the hover block above). */
         /* Payday anchors top-left, bank holiday top-right. Cutoff also anchors top-left, which cannot
            meet payday (Saturday vs Friday/Thursday) — revisit if the pay cycle changes. */
         .calendar-day.payday::before { content: '💷'; left: 3px; }
@@ -1210,8 +1207,14 @@
 
             /* Reduce the gap between the month heading and the day-name row. */
             .calendar-header { margin-bottom: 6px; padding-bottom: 6px; }
-
         }
+        /* EVERY SHIFT TIME FITS ITS DAY (28 Nov 2026): "06:20-" is 38.5px at 11px, and at 320–359px it overran every cell.
+           Today's 3px border takes 2px a side more than a day's, so Today's padding gives them back (Today's "22:30" read
+           "22:3"); below 375 the padding, then the size, give way. calendar-phone-layout.spec.js measures 320–414px. */
+        @media (max-width: 480px) { .calendar-day.today { padding-inline: 1px; } }
+        @media (max-width: 399px) { .shift-time { letter-spacing: 0; } }
+        @media (max-width: 374px) { .calendar-day { padding-inline: 2px; } .calendar-day.today { padding-inline: 0; } }
+        @media (max-width: 359px) { .shift-time { font-size: var(--type-micro); } .calendar-day { padding-inline: 1px; } .calendar-day.today { border-width: 2px; } }
 
         /* ── Mobile landscape (phones on their side) ─────────────────────── */
         /* max-width: 1023px prevents this firing on a short desktop browser window
@@ -1407,6 +1410,7 @@
             letter-spacing: -0.01em;
             color: var(--primary-blue);
             text-wrap: balance;
+            display: flex; align-items: baseline; gap: 0.25em;   /* a wrapped title hangs from its 👥, as a card's does */
         }
         /* Focus is PUT here when the card opens; the ring is still drawn, for a keyboard user to see where
            they are. */
@@ -2435,6 +2439,7 @@
             color: rgba(255,255,255,0.65);   /* 4.5:1 over a light page under the glass, as .day-detail-week */
             font-size: var(--type-small);
             font-weight: 600;
+            text-wrap: balance;   /* the Spare note's last line was "the day." alone */
         }
         .day-detail-leaveyear[hidden] { display: none !important; }
         /* At 320px "☀️ Early shift 07:00-16:00" measured 4px over the content; one step down the scale
@@ -2840,9 +2845,7 @@
             position: fixed;
             inset: 0;
             background: white;
-            /* var(--z-notice), not the literal 8500 it happened to equal (v18.90): the viewer must
-               sit above the lightbox base and below login, which is exactly that band. As a literal
-               it would silently drift out of the scale the moment --z-notice is retuned. */
+            /* The token, not a literal: above the lightbox base and below login, exactly that band. */
             z-index: var(--z-notice);
             flex-direction: column;
             opacity: 0;

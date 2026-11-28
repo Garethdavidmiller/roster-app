@@ -32,6 +32,7 @@ import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight,
          hasOverrideAuthorityFor } from './admin-overrides.js';
 import { loadFailedFor, DELETE_REFUSED } from './admin-override-store.js';
+import { fmtPeriodDate } from './admin-period-dates.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { rangeSundayCorrections, yearShiftWords, sundayShiftWords } from './admin-al-projection.js';
@@ -258,7 +259,8 @@ export function createRangeBookingSection(cfg) {
             const yes = swapAnswers.get(d) === true;
             const no  = swapAnswers.get(d) === false;
             return `<div class="swapday-row" data-date="${d}">`
-                 + `<span class="swapday-date">${formatDisplay(d)}</span>`
+                 // "Thu 9 Jul", as the range's own date chips say it: the WEEKDAY is what tells a rest day.
+                 + `<span class="swapday-date">${fmtPeriodDate(d)}</span>`
                  + `<span class="swapday-opts">`
                  + `<button type="button" class="swapday-opt" data-answer="yes" data-date="${d}" aria-pressed="${yes}">Yes, swapped — uses a leave day</button>`
                  + `<button type="button" class="swapday-opt" data-answer="no"  data-date="${d}" aria-pressed="${no}">No — rest day, nothing recorded</button>`

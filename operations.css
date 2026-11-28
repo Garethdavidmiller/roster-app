@@ -1280,19 +1280,7 @@ body.auth-ready .container { display: grid; }
 .auth-gap-ok      { margin: 0; color: var(--success-green); font-weight: 600; }
 .auth-gap-unknown { margin: 0; color: var(--text-mid); }
 /* Not a disabled state and not an error: the check did not run, which is neither of the answers
-   above, so it gets its own neutral voice and a way to ask again. */
-.auth-gap-retry {
-    font: inherit;
-    font-weight: 600;
-    color: var(--primary-blue);
-    background: none;
-    border: none;
-    border-bottom: 1px solid currentColor;
-    padding: 0;
-    cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) { .auth-gap-retry:hover:not(:disabled) { color: var(--primary-blue-dark); } }
-.auth-gap-retry:disabled { opacity: 0.5; cursor: default; }
+   above, so it gets its own neutral voice — and the page's way to ask again, `.card-retry-btn`. */
 .auth-orphans-label {
     display: flex;
     align-items: center;

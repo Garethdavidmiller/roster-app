@@ -764,27 +764,19 @@ test('settings: a saved email does not push the card\'s own chevron off it (v23.
     });
     expect(m.over, 'the chevron must stay inside its own card').toBeLessThanOrEqual(0);
     expect(m.hittable, 'and it must be the thing under its own centre').toBe(true);
-    // Teeth: removing `overflow-wrap: anywhere` from `.card-header .hint` fails both of the above.
-    // Removing `min-width: 0` does NOT — the wrap shrinks min-content by itself, so it is the half
-    // that fixes this. That is recorded in shared.css beside the rule rather than papered over.
+    // Teeth, until 28 Nov 2026: removing `overflow-wrap: anywhere` from `.card-header .hint` failed both of the
+    // above. Since then a header showing a chip gives its hint a row of its own (shared.css → "A CHIP SHARES THE
+    // TITLE'S ROW"), so at 320px the address no longer sits beside the cluster at all, and the wrap is the guard
+    // for a hint longer than the row; the two assertions stay as the outcome that matters.
 
-    // The other half of the fix, and it is not cosmetic: the collapsed card's job is to answer
-    // "which address is saved?" without being opened, so freeing the chevron by letting the hint
-    // be clipped mid-token would trade one defect for another. It WRAPS.
-    // Measured against the hint's OWN one-line height rather than a `line-height` computation:
-    // `.card-header .hint` sets none, so that resolves to `normal` and parses to NaN — which is
-    // how the first cut of this assertion failed against a fix that was working.
-    const wrapped = await page.evaluate(() => {
+    // The other half, and it is not cosmetic: the collapsed card's job is to answer "which address is saved?"
+    // without being opened, so the address is never clipped mid-token — it fits its row, or it WRAPS.
+    const shown = await page.evaluate(() => {
         const h = /** @type {HTMLElement} */ (document.getElementById('contactHint'));
-        const tall = h.getBoundingClientRect().height;
-        const was = h.textContent;
-        h.textContent = 'x';
-        const one = h.getBoundingClientRect().height;
-        h.textContent = was;
-        return { tall: Math.round(tall), one: Math.round(one) };
+        const card = /** @type {HTMLElement} */ (document.getElementById('contactCard')).getBoundingClientRect();
+        return { clipped: h.scrollWidth > h.clientWidth + 1, inside: h.getBoundingClientRect().right <= card.right };
     });
-    expect(wrapped.tall, `the address wraps rather than being cut off (${JSON.stringify(wrapped)})`)
-        .toBeGreaterThan(wrapped.one);
+    expect(shown, 'the whole address is on the card').toEqual({ clipped: false, inside: true });
 });
 
 test('settings: the pay data card counts what is actually on the device', async ({ page }) => {

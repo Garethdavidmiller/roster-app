@@ -617,6 +617,14 @@ describe('the swap answers', () => {
         assert.match(el('alPreview').innerHTML, /<strong>This day is a rest day<\/strong>/);
     });
 
+    // The WEEKDAY is what tells somebody a day is a rest day, so each question names it as the range's date
+    // chips do ("Fri 9 Oct"), never "9 October 2026" (28 Nov 2026).
+    test('each rest day in the question is named with its weekday, as the date chips name it', () => {
+        const { section } = wire({ cfg: { swapQuestion: () => [REST] } });
+        setRange(section, '2026-10-05', REST);
+        assert.match(el('alPreview').innerHTML, /<span class="swapday-date">Fri 9 Oct<\/span>/);
+    });
+
     test('changing an answer dismisses a showing over-limit bar (review A19)', () => {
         // The bar was computed for the OLD answers; "Save anyway" then booked the new ones unchecked.
         let dismissed = 0;

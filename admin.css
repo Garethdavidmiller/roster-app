@@ -225,7 +225,7 @@
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
         /* WRAPS, as the Calendar's twin does, or the card cuts the banner. Quieter by size and colour, never a fade. */
         .al-banner-stat .stat-breakdown { font-size: var(--type-micro); line-height: 1.25; text-align: center; color: var(--text-mid); }
-        /* FOUR STATS ON ONE ROW STOP FITTING BELOW ~356px: "ENTITLEMENT" will not shrink, and the card
+        /* FOUR STATS ON ONE ROW STOP FITTING BELOW ~356px: "2026 ALLOWANCE" will not shrink, and the card
            CUTS the surplus. So 2×2 there — an ellipsis, a mid-word break or a smaller micro-label all
            lose information — and the dividers go with the single row. 359px keeps every working width. */
         @media (max-width: 359px) {
@@ -975,10 +975,15 @@
             line-height: 1.5;
         }
         .col-al-swap[hidden] { display: none !important; }
-        .al-swap-opts { display: flex; gap: 6px; flex-wrap: wrap; }
-        .al-swap-btn {
-            min-height: 44px;
-            padding: 5px 10px;
+        /* ONE RECIPE FOR BOTH DOORS' ANSWER BUTTONS (28 Nov 2026): this row's question and the AL card's
+           (`.swapday-opt`) were two near-copies with different padding, and stacked on a phone each button
+           was as wide as its own words, so the pair read ragged. Each button now grows from one shared
+           basis: side by side they share the row, stacked they are the same width. */
+        .al-swap-opts, .swapday-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .al-swap-opts > *, .swapday-opts > * { flex: 1 1 15em; }
+        .al-swap-btn, .swapday-opt {
+            min-height: 44px;         /* the app's touch target, same as every other control here */
+            padding: 6px 12px;
             border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
             border-radius: var(--radius-button);
             background: var(--surface);
@@ -986,13 +991,15 @@
             font: inherit;
             font-weight: 600;
             cursor: pointer;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
         }
-        .al-swap-btn[aria-pressed="true"] {
+        .al-swap-btn[aria-pressed="true"], .swapday-opt[aria-pressed="true"] {
             background: var(--al-deep);
             color: var(--surface);
             border-color: var(--al-deep);
         }
-        .al-swap-btn:active { scale: var(--press-scale); }
+        .al-swap-btn:active, .swapday-opt:active { scale: var(--press-scale); }
 
 
 
@@ -1652,8 +1659,10 @@
                at 36px — the only new control on the page under the touch standard its neighbours
                (the ✕ deletes, Saved Changes' ✎ · ✕) all meet. */
             min-height: 44px;
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-pill);
+            /* A TAB IS A BUTTON (css-tokens.md → Corners): the edge and corner of the Calendar's grade tabs
+               (`.grade-tab`). As a pill it read as a tag (28 Nov 2026). */
+            border: 2px solid var(--border-light);
+            border-radius: var(--radius-button);
             background: var(--surface);
             color: var(--text-mid);
             font-family: inherit;
@@ -1888,26 +1897,7 @@
             padding: 5px 0;
         }
         .swapday-date { font-weight: 700; min-width: 7.5em; }
-        .swapday-opts { display: flex; gap: 6px; flex-wrap: wrap; }
-        .swapday-opt {
-            min-height: 44px;         /* the app's touch target, same as every other control here */
-            padding: 6px 12px;
-            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
-            border-radius: var(--radius-button);
-            background: var(--surface);
-            color: var(--al-deep);
-            font: inherit;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background var(--dur-fast) var(--ease-standard),
-                        border-color var(--dur-fast) var(--ease-standard);
-        }
-        .swapday-opt[aria-pressed="true"] {
-            background: var(--al-deep);
-            color: var(--surface);
-            border-color: var(--al-deep);
-        }
-        .swapday-opt:active { scale: var(--press-scale); }
+        /* Its two answer buttons share the week grid's recipe: `.al-swap-btn, .swapday-opt`, above. */
 
         /* WHICH YEAR'S ALLOWANCE (v25.18) — a panel on the AL card, drawn by admin-leave-year.js.
            The same box as the Recorded dates list beneath it, so the card reads as one family; the
@@ -2449,11 +2439,15 @@
            rather than lighting up, so it has no chosen fill. An `.active` rule sat here from its first
            version to v25.16 and nothing ever set the class; it was recoloured at v25.16 with the
            app's other chosen states and only then found unused, so it went at v25.20. */
+        /* It sits beside the month picker, so it wears that field's edge and fill and is its height
+           (both 36px, `.override-selectall, .btn-show-all-overrides` above): at 11px on a faint 1.5px
+           hairline it read as a lesser kind of control than the field beside it (28 Nov 2026). Still a
+           button — it acts, it does not hold a value. */
         .btn-show-all-overrides {
-            background: white;
-            border: 1.5px solid var(--border-light);
+            background-color: var(--field-bg);
+            border: var(--field-border);
             color: var(--text-mid);
-            font-size: var(--type-badge);
+            font-size: var(--type-small);
             font-weight: 700;
             padding: 5px 10px;
             border-radius: var(--radius-button);

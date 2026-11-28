@@ -2445,6 +2445,24 @@ test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its c
         .toHaveText('⚠ Source conflict — check the retail system');
 });
 
+// A RESULT SAYS ONE EMOJI, ITS GUIDE'S (28 Nov 2026). Each row leads with the guide's emoji, so a heading's own
+// read twice: "🇪🇺 📋 Can International Rail book it?", "🇪🇺 🇱🇹 Lithuania". guide-search.js leaves the heading's
+// out (guide-search.test.mjs runs every one in the index); this reads the row as drawn.
+test('guide search: a result row shows its guide\'s emoji and not its heading\'s as well', async ({ page }) => {
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trControls')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await input.click();
+    for (const [q, id, title] of [['lithuania', 'country-lt', 'Lithuania'], ['international rail', 'booking-table', 'Can International Rail book it? Country by country']]) {
+        await input.fill(q);
+        const row = page.locator(`#navGuideSearchResults a[href*="fip-guide.html#${id}"]`);
+        await expect(row.locator('.nav-link-title'), `"${q}"`).toHaveText(title);
+        await expect(row.locator(':scope > span[aria-hidden="true"]')).toHaveText('🇪🇺');
+    }
+});
+
 // THE RAILCARD GUIDE'S DRAFT REACHES THE DRAWER IN THAT GUIDE'S OWN WORDS (whole-app check, Nov 2026). Its one draft —
 // how long a Jobcentre Plus card lasts — was read at its source, which does not say, and its page says "not
 // established"; the flag said "source not yet verified", the Rangers guide's meaning of a draft: nobody has looked.

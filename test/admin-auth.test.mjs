@@ -398,8 +398,11 @@ test('a missing admin claim points at the runbook, never at the console, and sen
 describe('the retry', () => {
     test('a failed check offers one, and it asks again', async () => {
         const { gaps } = await wire(new Error('offline'));
-        const retry = gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-retry');
+        const retry = gaps.find((/** @type {any} */ e) => String(e.className).split(/\s+/).includes('card-retry-btn'));
         assert.ok(retry, 'a check that cannot be re-run leaves the admin with a dead line of text');
+        // The page's other cards' way back, word and look alike (operations-reports.js `_cardLoadError`).
+        assert.equal(retry.textContent, '↻ Try again');
+        assert.equal(retry.className, 'btn-action btn-secondary card-retry-btn');
         assert.equal(_calls, 1);
         _next = CLEAN;
         await retry.fire('click');
@@ -450,7 +453,7 @@ describe('a check that cannot answer takes back what an earlier one told the str
     test('a Retry that fails again withdraws again', async () => {
         const w = await wire(new Error('offline'));
         assert.equal(w.withdrawals.length, 1, 'the first load could not answer either');
-        const retry = w.gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-retry');
+        const retry = w.gaps.find((/** @type {any} */ e) => String(e.className).split(/\s+/).includes('card-retry-btn'));
         await retry.fire('click');
         await drain();
         assert.equal(w.withdrawals.length, 2);
@@ -462,8 +465,9 @@ describe('a check that cannot answer takes back what an earlier one told the str
 // `auth-gaps--warn` was toggled on every load and `auth-gap-line--setup` stamped on every set-up
 // line; no rule in operations.css — the page that shows the card — reads either. A class nothing
 // styles tells the next reader there is a warn state to look for, and there is not.
-test('every class the block writes is one operations.css styles', async () => {
-    const css = readFileSync(new URL('./operations.css', REPO_ROOT_URL), 'utf8');
+test('every class the block writes is one the page styles', async () => {
+    // The page loads shared.css too, where the app's button recipe (`.btn-action`) lives.
+    const css = ['./operations.css', './shared.css'].map(f => readFileSync(new URL(f, REPO_ROOT_URL), 'utf8')).join('\n');
     /** @type {Set<string>} */ const seen = new Set();
     const walk = (/** @type {any} */ el) => {
         if (typeof el === 'string') return;
@@ -472,7 +476,7 @@ test('every class the block writes is one operations.css styles', async () => {
         el.children.forEach(walk);
     };
     for (const answer of [GAPPY, CLEAN, REFUSED, new Error('offline')]) walk((await wire(answer)).gaps);
-    for (const c of ['auth-gap-line', 'auth-gap-line--leaver', 'auth-gap-fix', 'auth-gap-ok', 'auth-gap-unknown', 'auth-gap-retry']) {
+    for (const c of ['auth-gap-line', 'auth-gap-line--leaver', 'auth-gap-fix', 'auth-gap-ok', 'auth-gap-unknown', 'card-retry-btn']) {
         assert.ok(seen.has(c), `premise: ${c} was rendered`);
     }
     const unstyled = [...seen].filter(c => !new RegExp(`\\.${c}(?![\\w-])`).test(css));

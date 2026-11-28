@@ -3486,34 +3486,34 @@ body.auth-ready .boot-placeholder { display: none; }
     display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-/* THE TITLE BLOCK MUST BE ALLOWED TO SHRINK, AND ITS HINT TO BREAK.
-   A flex item's automatic minimum is its MIN-CONTENT, so a hint holding one unbreakable token (a
-   saved work email at 320px) pins the left block, and the `flex-shrink: 0` actions are pushed past
-   the card's edge, where `overflow: hidden` deletes the chevron.
-   WHICH DECLARATION DOES THE WORK (mutation-tested): `overflow-wrap: anywhere` — it also shrinks the
-   min-content, so it frees the chevron alone and is the half a test protects. `min-width: 0` stays
-   as the structural statement for an unbreakable token in the `h2` TITLE, which nothing puts there
-   today, so no test covers it. The wrap also keeps the address READABLE rather than clipped. */
-.card-header-toggle > :first-child { min-width: 0; }
+/* THE TITLE BLOCK MAY SHRINK, AND ITS HINT BREAK. A flex item's minimum is its MIN-CONTENT, so one
+   unbreakable token in the hint (a saved work email at 320px) pinned the block and pushed the
+   `flex-shrink: 0` actions past the card's edge, where `overflow: hidden` deleted the chevron. The wrap
+   shrinks the min-content and keeps the address readable; `min-width: 0` (below) covers the h2. */
 .card-header .hint { overflow-wrap: anywhere; }
 
 /* ── LARGER TEXT: A CHIP NEVER SITS ON ITS TITLE (22 Nov 2026) ───────────────────────────────────
-   The cluster keeps its width (`flex-shrink: 0`, chip `nowrap`), so under a phone's larger text the
-   title shrank beneath it: Settings' "Password" read "Pas" at 320px from 1.15 times, and Admin's
-   "2026: 32 left" covered its title at 1.5. So the header asks its own width in em (css-tokens.md →
-   "Larger text"). 18em, MEASURED: a 320px phone at 1 times is 19.1em, so no normal-size page reaches
-   it; the widest failure was 16.6em, the narrowest pass 17.7em. Below it a header SHOWING a chip gives
-   its title the first row and the chip, `?` and arrow the second, at the right edge; one with no chip
-   keeps its row. The row may always wrap because the title block is `flex: 1 1 0%` — nothing wraps
-   until the query gives it 100%, and at full width it lays out as before (pixel-identical on every
-   card page at 320, 375 and 1280px). Pinned by e2e/pages.spec.js → "no card's chip covers its title". */
+   The cluster keeps its width (`flex-shrink: 0`, chip `nowrap`), so under larger text the title shrank
+   beneath it ("Password" read "Pas" at 320px from 1.15 times). So the header asks its own width in em
+   (css-tokens.md → "Larger text"). 18em, MEASURED: a 320px phone at 1 times is 19.1em; the widest
+   failure was 16.6em, the narrowest pass 17.7em. Below it a header SHOWING a chip gives its title block
+   the first row and the cluster the second, at the right edge. The title block is `flex: 1 1 0%`, so
+   nothing wraps until a query asks. Pinned by e2e/pages.spec.js → "no card's chip covers its title". */
 .card-header-toggle, .card-header--row { container: card-head / inline-size; flex-wrap: wrap; }
 .card-header-toggle > :first-child, .card-header--row > :first-child { flex: 1 1 0%; min-width: 0; }
 @container card-head (max-width: 18em) {
-    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > :first-child {
-        flex-basis: 100%;
-    }
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > :first-child { flex-basis: 100%; }
     :is(.card-header-toggle, .card-header--row) > .card-header-actions { margin-left: auto; }
+}
+/* A CHIP SHARES THE TITLE'S ROW, NOT THE HINT'S (28 Nov 2026): beside a chip, `?` and arrow a hint ran to five
+   lines at 375px. From 18em to 30em (MEASURED: every phone, and the 400–420px columns at 1280px, never a 640px
+   card) the title block's plain div lets its box go — h2 and hint keep their roles — so the hint takes row 2
+   at full width. The `?` hangs 2px over its row, making it 20px, not 26. e2e/pages.spec.js pins it. */
+@container card-head (width > 18em) and (width <= 30em) {
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > .card-header-actions { padding-top: 0; margin-block: -2px; }
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > div:first-child { display: contents; }
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > div:first-child > h2 { flex: 1 1 0%; min-width: 0; align-self: center; }
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > div:first-child > .hint { order: 2; flex-basis: 100%; }
 }
 @media (hover: hover) and (pointer: fine) {
     .card-header-toggle:hover { background: var(--bg-faint); }

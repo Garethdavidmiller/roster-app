@@ -277,15 +277,11 @@
                 <span class="cmf-label">Recording for</span>
                 <span class="cmf-name" id="alMemberForName"></span>
             </div>
-            <!-- Annual Leave balance banner — updates when a member is selected -->
+            <!-- Annual Leave balance banner — updates when a member is selected. The Calendar leave panel's
+                 four figures in its order and words: Taken · Booked · Remaining · Allowance (28 Nov 2026). -->
             <div class="al-banner" id="alBanner" hidden>
                 <span class="al-banner-icon">🏖️</span>
                 <div class="al-banner-numbers">
-                    <div class="al-banner-stat stat-remaining" role="group" aria-labelledby="alBannerLblRemaining">
-                        <span class="stat-val" id="alBannerRemaining">—</span>
-                        <span class="stat-lbl" id="alBannerLblRemaining">Remaining</span>
-                    </div>
-                    <div class="al-banner-divider"></div>
                     <div class="al-banner-stat" role="group" aria-labelledby="alBannerLblTaken">
                         <span class="stat-val" id="alBannerTaken">—</span>
                         <span class="stat-lbl" id="alBannerLblTaken">Taken</span>
@@ -296,9 +292,14 @@
                         <span class="stat-lbl" id="alBannerLblBooked">Booked</span>
                     </div>
                     <div class="al-banner-divider"></div>
+                    <div class="al-banner-stat stat-remaining" role="group" aria-labelledby="alBannerLblRemaining">
+                        <span class="stat-val" id="alBannerRemaining">—</span>
+                        <span class="stat-lbl" id="alBannerLblRemaining">Remaining</span>
+                    </div>
+                    <div class="al-banner-divider"></div>
                     <div class="al-banner-stat" role="group" aria-labelledby="alBannerLblEntitlement">
                         <span class="stat-val" id="alBannerEntitlement">—</span>
-                        <span class="stat-lbl" id="alBannerLblEntitlement">Entitlement</span>
+                        <span class="stat-lbl" id="alBannerLblEntitlement">Allowance</span>
                         <span class="stat-breakdown" id="alBannerBreakdown" hidden></span>
                     </div>
                 </div>

@@ -147,3 +147,22 @@ test('the limit keeps the BEST results, not the first ones in the index', () => 
     assert.equal(r[0].id, 'gold-card', 'the title hit is ranked first, and is not cut by the limit');
     assert.deepEqual(r.slice(1).map(x => x.id), ['b0', 'b1', 'b2', 'b3'], 'ties keep index order');
 });
+
+// A result row already leads with its GUIDE's emoji (nav-guide-search.js), so a heading's own read twice:
+// "🇪🇺 📋 Can International Rail book it?" (28 Nov 2026). Run over the REAL index, so every leading emoji the
+// guides ship — a flag, a pictograph with its variation selector — is covered, not only the fixture's.
+test('a result title leaves out its heading\'s leading emoji — the row leads with the guide\'s', async () => {
+    const { GUIDE_INDEX } = await import('../guide-index.js');
+    assert.equal(searchGuideIndex(IDX, 'france')[0].title, 'France');
+    const titles = (/** @type {string} */ q) => searchGuideIndex(GUIDE_INDEX, q, { limit: 50 }).map(r => r.title);
+    assert.ok(titles('international rail').includes('Can International Rail book it? Country by country'));
+    assert.ok(titles('lithuania').includes('Lithuania'));
+    assert.ok(titles('stena').some(t => t.startsWith('Stena Line')), 'a ferry heading (⛴️ with its selector) loses its emoji');
+    const startsWithEmoji = /^[\p{Extended_Pictographic}\p{Regional_Indicator}️]/u;
+    const leading = GUIDE_INDEX.filter(u => startsWithEmoji.test(u.t));
+    assert.ok(leading.length >= 30, 'the index has headings that lead with an emoji, or this test proves nothing');
+    for (const u of leading) {
+        const hit = searchGuideIndex([u], u.tt.split(' ')[0] || 'x')[0];
+        assert.ok(hit && !startsWithEmoji.test(hit.title) && hit.title.trim() === hit.title, `"${u.t}" → "${hit?.title}"`);
+    }
+});

@@ -607,6 +607,35 @@ for (const k of [1, 1.3, 1.6]) {
     });
 }
 
+// EVERY SHIFT TIME FITS ITS DAY (28 Nov 2026). "06:20-" is the widest half of a time, and at 320–359px it overran
+// every cell's box; at 375 and 390 Today's thicker border left "22:30" reading "22:3" (index.css → "EVERY SHIFT
+// TIME FITS ITS DAY"). Measured on the words themselves against the cell's inside edge (the cell clips), and on the
+// line's own scroll width, from the narrowest phone to 414px — a Today on a late turn included.
+for (const width of [320, 333, 344, 360, 375, 390, 414]) {
+    test(`calendar: no shift time is cut at ${width}px, Today's included`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await page.setViewportSize({ width, height: 800 });
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [{ id: 't15', memberName: 'G. Miller', date: '2026-07-15', type: 'shift', value: '14:30-22:30', note: '' }];
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day.today .shift-time')).toHaveText('14:30-22:30');
+        const cut = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month) .shift-time')]
+            .map(el => {
+                const cell = /** @type {HTMLElement} */ (el.closest('.calendar-day'));
+                const cs = getComputedStyle(cell), box = cell.getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                const text = range.getBoundingClientRect();
+                const out = Math.max(box.left + parseFloat(cs.borderLeftWidth) - text.left, text.right - (box.right - parseFloat(cs.borderRightWidth)));
+                return { day: cell.dataset.detailIso, time: el.textContent, out, over: el.scrollWidth - el.clientWidth };
+            })
+            .filter(t => t.out > 0.5 || t.over > 0));
+        expect(cut, 'a shift time runs past its day').toEqual([]);
+    });
+}
+
 // THE WEEK NOTE'S LONGEST FORM SHARES THE MONTH'S LINE (owner, 26 Nov 2026). A month that crosses the end of the
 // cycle reads "CEA Weeks 19–20, 1–3", and on the owner's phone "November 2026" and that note missed one line by a
 // pixel, so the note dropped beneath the heading where December's sat beside it. A thin space after the comma and a

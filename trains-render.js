@@ -728,7 +728,7 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
     const planner = `<a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>`;
     // 25 and 26 December: no "Scheduled", and what the trains are, first (the header).
     const meta = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => `<p class="tr-jr-meta"><span>${esc(on(day.date))}</span>`
-        + `<span aria-hidden="true">·</span><span>${esc(day.timetable.label)}</span>${holidayOf(day.date) ? '' : '<span class="tr-jr-sched">Scheduled</span>'}</p>`
+        + `<span>${esc(day.timetable.label)}</span>${holidayOf(day.date) ? '' : '<span class="tr-jr-sched">Scheduled</span>'}</p>`
         + (holidayOf(day.date) === 'Boxing Day' ? `<p class="card-explainer tr-lead tr-jr-holiday"><strong>${esc(holidayOf(day.date))}’s trains are not on this page — these are an ordinary `
             + `${esc(day.date.toLocaleDateString('en-GB', { weekday: 'long' }))}’s.</strong> Check ${planner}.</p>` : '');
     /** One train: its time and end, its route, when it gets there, and its stops on tap. */
